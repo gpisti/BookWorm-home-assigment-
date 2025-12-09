@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="flex items-center justify-center min-h-[80vh]">
+    <div class="glass-panel p-8 rounded-2xl shadow-2xl w-full max-w-md transform transition-all hover:scale-[1.01]">
+        
+        <div class="text-center mb-8">
+            <h2 class="text-3xl font-extrabold text-white mb-2">Welcome Back!</h2>
+            <p class="text-gray-400">Sign in to your digital bookshelf.</p>
+        </div>
+
+        <form id="loginForm" class="space-y-6">
+            <div>
+                <label for="username" class="block text-sm font-medium text-gray-300">Username</label>
+                <div class="mt-1 relative rounded-md shadow-sm">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <i class="fas fa-user text-gray-500"></i>
+                    </div>
+                    <input type="text" id="username" required 
+                        class="bg-gray-800/50 border border-gray-600 text-white text-sm rounded-lg focus:ring-neon-blue focus:border-neon-blue block w-full pl-10 p-2.5 placeholder-gray-500 transition-colors" 
+                        placeholder="Pisti">
+                </div>
+            </div>
+
+            <div>
+                <label for="password" class="block text-sm font-medium text-gray-300">Password</label>
+                <div class="mt-1 relative rounded-md shadow-sm">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <i class="fas fa-lock text-gray-500"></i>
+                    </div>
+                    <input type="password" id="password" required 
+                        class="bg-gray-800/50 border border-gray-600 text-white text-sm rounded-lg focus:ring-neon-blue focus:border-neon-blue block w-full pl-10 p-2.5 placeholder-gray-500 transition-colors" 
+                        placeholder="••••••••">
+                </div>
+            </div>
+
+            <div>
+                <button type="submit" 
+                    class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-gradient-to-r from-neon-blue to-neon-purple hover:from-blue-600 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-neon-blue transform hover:-translate-y-1 transition duration-300">
+                    Sign In
+                </button>
+            </div>
+        </form>
+        
+        <div class="mt-6 text-center">
+            <a href="/register" class="text-sm text-neon-blue hover:text-neon-purple transition-colors">Don't have an account? Sign up!</a>
+        </div>
+        
+        <div id="errorMsg" class="mt-4 text-center text-red-400 text-sm hidden"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const username = document.getElementById('username').value;
+        const password = document.getElementById('password').value;
+        const errorMsg = document.getElementById('errorMsg');
+
+        const formData = new URLSearchParams();
+        formData.append('username', username);
+        formData.append('password', password);
+
+        try {
+            const response = await fetch('/auth/token', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                body: formData
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                localStorage.setItem('token', data.access_token);
+                window.location.href = '/dashboard'; 
+            } else {
+                errorMsg.textContent = "Invalid username or password!";
+                errorMsg.classList.remove('hidden');
+                document.querySelector('.glass-panel').classList.add('animate-pulse');
+                setTimeout(() => document.querySelector('.glass-panel').classList.remove('animate-pulse'), 500);
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            errorMsg.textContent = "Network error occurred.";
+            errorMsg.classList.remove('hidden');
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="flex items-center justify-center min-h-[80vh]">
+    <div class="glass-panel p-8 rounded-2xl shadow-2xl w-full max-w-md transform transition-all hover:scale-[1.01]">
+        
+        <div class="text-center mb-8">
+            <h2 class="text-3xl font-extrabold text-white mb-2">Create Account</h2>
+            <p class="text-gray-400">Join us and build your bookshelf!</p>
+        </div>
+
+        <form id="registerForm" class="space-y-6">
+            <div>
+                <label for="username" class="block text-sm font-medium text-gray-300">Username</label>
+                <div class="mt-1 relative rounded-md shadow-sm">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <i class="fas fa-user text-gray-500"></i>
+                    </div>
+                    <input type="text" id="username" required 
+                        class="bg-gray-800/50 border border-gray-600 text-white text-sm rounded-lg focus:ring-neon-blue focus:border-neon-blue block w-full pl-10 p-2.5 placeholder-gray-500 transition-colors" 
+                        placeholder="Pisti">
+                </div>
+            </div>
+
+            <div>
+                <label for="email" class="block text-sm font-medium text-gray-300">Email Address</label>
+                <div class="mt-1 relative rounded-md shadow-sm">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <i class="fas fa-envelope text-gray-500"></i>
+                    </div>
+                    <input type="email" id="email" required 
+                        class="bg-gray-800/50 border border-gray-600 text-white text-sm rounded-lg focus:ring-neon-blue focus:border-neon-blue block w-full pl-10 p-2.5 placeholder-gray-500 transition-colors" 
+                        placeholder="pisti@example.com">
+                </div>
+            </div>
+
+            <div>
+                <label for="password" class="block text-sm font-medium text-gray-300">Password</label>
+                <div class="mt-1 relative rounded-md shadow-sm">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <i class="fas fa-lock text-gray-500"></i>
+                    </div>
+                    <input type="password" id="password" required minlength="4"
+                        class="bg-gray-800/50 border border-gray-600 text-white text-sm rounded-lg focus:ring-neon-blue focus:border-neon-blue block w-full pl-10 p-2.5 placeholder-gray-500 transition-colors" 
+                        placeholder="••••••••">
+                </div>
+            </div>
+
+            <div>
+                <button type="submit" 
+                    class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-gradient-to-r from-neon-purple to-neon-blue hover:from-purple-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-neon-purple transform hover:-translate-y-1 transition duration-300">
+                    Sign Up
+                </button>
+            </div>
+        </form>
+        
+        <div class="mt-6 text-center">
+            <a href="/login" class="text-sm text-neon-blue hover:text-neon-purple transition-colors">Already have an account? Sign in</a>
+        </div>
+        
+        <div id="msgBox" class="mt-4 text-center text-sm hidden p-2 rounded"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.getElementById('registerForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const username = document.getElementById('username').value;
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        const msgBox = document.getElementById('msgBox');
+
+        const payload = {
+            username: username,
+            email: email,
+            password: password
+        };
+
+        try {
+            const response = await fetch('/auth/register', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                msgBox.textContent = "Registration successful! Redirecting...";
+                msgBox.className = "mt-4 text-center text-green-300 bg-green-500/20 p-2 rounded block";
+                
+                setTimeout(() => {
+                    window.location.href = '/login';
+                }, 1500);
+            } else {
+                let errorMessage = "An error occurred during registration.";
+                
+                if (data.detail) {
+                    if (Array.isArray(data.detail)) {
+                        errorMessage = data.detail.map(err => {
+                            if (err.loc && err.msg) {
+                                const field = err.loc[err.loc.length - 1];
+                                return `${field}: ${err.msg}`;
+                            }
+                            return err.msg || JSON.stringify(err);
+                        }).join(', ');
+                    } else if (typeof data.detail === 'string') {
+                        errorMessage = data.detail;
+                    } else {
+                        errorMessage = JSON.stringify(data.detail);
+                    }
+                }
+                
+                msgBox.textContent = errorMessage;
+                msgBox.className = "mt-4 text-center text-red-300 bg-red-500/20 p-2 rounded block";
+            }
+        } catch (error) {
+            console.error(error);
+            msgBox.textContent = "Network error occurred.";
+            msgBox.className = "mt-4 text-center text-red-300 bg-red-500/20 p-2 rounded block";
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-8">
+    <div class="glass-panel p-8 rounded-2xl relative overflow-hidden">
+        <div class="relative z-10">
+            <h1 class="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-neon-blue to-neon-purple mb-2">
+                My Bookshelf
+            </h1>
+            <p class="text-gray-300">Manage your reading list: set status and rate books!</p>
+        </div>
+        <div class="absolute top-0 right-0 w-64 h-64 bg-neon-blue rounded-full filter blur-[100px] opacity-20 animate-pulse"></div>
+    </div>
+
+    <div id="shelfGrid" class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const token = localStorage.getItem('token');
+    if (!token) window.location.href = '/login';
+
+    const statusConfig = {
+        'plan_to_read': { label: 'Plan to Read', color: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/50' },
+        'reading': { label: 'Reading', color: 'bg-blue-500/20 text-blue-300 border-blue-500/50' },
+        'completed': { label: 'Completed', color: 'bg-green-500/20 text-green-300 border-green-500/50' },
+        'dropped': { label: 'Dropped', color: 'bg-red-500/20 text-red-300 border-red-500/50' }
+    };
+
+    async function loadShelf() {
+        const grid = document.getElementById('shelfGrid');
+        try {
+            const response = await fetch('/shelf/', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const items = await response.json();
+            
+            grid.innerHTML = '';
+            items.forEach(item => renderShelfItem(item, grid));
+            
+            if (items.length === 0) {
+                grid.innerHTML = `<div class="col-span-full text-center text-gray-500 mt-10">
+                    <p class="text-xl">Your shelf is empty.</p>
+                    <a href="/browse" class="text-neon-blue hover:underline mt-2 inline-block">Browse books!</a>
+                </div>`;
+            }
+        } catch (error) {
+            console.error(error);
+        }
+    }
+
+    function renderShelfItem(item, grid) {
+        const card = document.createElement('div');
+        card.className = "glass-panel p-6 rounded-2xl flex flex-col sm:flex-row gap-6 hover:border-gray-500 transition-colors";
+        const statusStyle = statusConfig[item.status] || statusConfig['plan_to_read'];
+
+        let starsHtml = '';
+        for(let i=1; i<=5; i++) {
+            starsHtml += `<i class="fas fa-star ${i <= (item.rating || 0) ? 'text-yellow-400' : 'text-gray-600'}"></i>`;
+        }
+
+        card.innerHTML = `
+            <div class="w-full sm:w-32 h-48 flex-shrink-0">
+                <img src="${item.book.cover_url || 'https://via.placeholder.com/150'}" 
+                     class="w-full h-full object-cover rounded-lg shadow-lg">
+            </div>
+
+            <div class="flex-grow space-y-3 w-full">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <h3 class="text-2xl font-bold text-white">${item.book.title}</h3>
+                        <p class="text-neon-purple">${item.book.author}</p>
+                    </div>
+                    <span class="px-3 py-1 rounded-full text-xs font-bold border ${statusStyle.color}">
+                        ${statusStyle.label}
+                    </span>
+                </div>
+
+                <div class="bg-gray-800/50 p-4 rounded-xl mt-4 border border-gray-700">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="text-xs text-gray-400 uppercase font-bold">Status:</label>
+                            <select onchange="updateStatus(${item.id}, this.value)" 
+                                    class="w-full mt-1 bg-gray-900 border border-gray-600 text-white rounded p-2 text-sm focus:border-neon-blue outline-none">
+                                <option value="plan_to_read" ${item.status === 'plan_to_read' ? 'selected' : ''}>Plan to Read</option>
+                                <option value="reading" ${item.status === 'reading' ? 'selected' : ''}>Reading</option>
+                                <option value="completed" ${item.status === 'completed' ? 'selected' : ''}>Completed</option>
+                                <option value="dropped" ${item.status === 'dropped' ? 'selected' : ''}>Dropped</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-xs text-gray-400 uppercase font-bold">Rating:</label>
+                            <input type="number" min="1" max="5" value="${item.rating || ''}" 
+                                onchange="updateRating(${item.id}, this.value)"
+                                placeholder="1-5"
+                                class="w-full mt-1 bg-gray-900 border border-gray-600 text-white rounded p-2 text-sm">
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <label class="text-xs text-gray-400 uppercase font-bold">Review:</label>
+                        <textarea onchange="updateReview(${item.id}, this.value)"
+                                placeholder="Write your review of the book..."
+                                class="w-full mt-1 bg-gray-900 border border-gray-600 text-white rounded p-2 text-sm min-h-[80px] resize-y focus:border-neon-blue outline-none">${item.review || ''}</textarea>
+                    </div>
+                    
+                    ${item.review ? `
+                    <div class="mt-4 p-3 bg-gray-900/50 rounded-lg border border-gray-700">
+                        <p class="text-xs text-gray-400 uppercase font-bold mb-2">Current Review:</p>
+                        <p class="text-gray-300 text-sm whitespace-pre-wrap">${item.review}</p>
+                    </div>
+                    ` : ''}
+                    
+                    <div class="mt-4 flex justify-between items-center border-t border-gray-700 pt-3">
+                         <div class="text-sm text-yellow-500">${starsHtml}</div>
+                         <button onclick="deleteItem(${item.id})" class="text-red-400 hover:text-red-300 text-sm">
+                            <i class="fas fa-trash"></i> Remove
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        grid.appendChild(card);
+    }
+
+    async function updateStatus(itemId, newStatus) {
+        await fetch(`/shelf/${itemId}`, {
+            method: 'PUT',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: newStatus })
+        });
+        loadShelf(); 
+    }
+
+    async function updateRating(itemId, newRating) {
+        await fetch(`/shelf/${itemId}`, {
+            method: 'PUT',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ rating: parseInt(newRating) })
+        });
+        loadShelf();
+    }
+
+    async function updateReview(itemId, newReview) {
+        await fetch(`/shelf/${itemId}`, {
+            method: 'PUT',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ review: newReview })
+        });
+        loadShelf();
+    }
+
+    async function deleteItem(itemId) {
+        if(!confirm("Are you sure you want to remove this from your shelf?")) return;
+        await fetch(`/shelf/${itemId}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        loadShelf();
+    }
+
+    loadShelf();
+</script>
+{% endblock %}

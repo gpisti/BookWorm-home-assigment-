@@ -1,0 +1,350 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+    @keyframes slide-in {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+    .animate-slide-in {
+        animation: slide-in 0.3s ease-out;
+    }
+</style>
+<div class="space-y-6">
+    <div class="flex flex-col md:flex-row justify-between items-center glass-panel p-6 rounded-2xl">
+        <div>
+            <h1 class="text-3xl font-bold text-white mb-2">Browse Library</h1>
+            <p class="text-gray-400">Discover the latest books and add them to your shelf.</p>
+        </div>
+        <div class="mt-4 md:mt-0 flex gap-3 w-full md:w-2/3">
+            <div class="relative flex-1">
+                <input type="text" id="searchInput" placeholder="Search by title or author..." 
+                    class="w-full bg-gray-800/50 border border-gray-600 text-white rounded-xl pl-4 pr-10 py-3 focus:ring-2 focus:ring-neon-blue outline-none transition-all">
+                <i class="fas fa-search absolute right-4 top-4 text-gray-500"></i>
+            </div>
+            <div class="relative flex-1">
+                <input type="text" id="isbnInput" placeholder="Search by ISBN..." 
+                    class="w-full bg-gray-800/50 border border-gray-600 text-white rounded-xl pl-4 pr-20 py-3 focus:ring-2 focus:ring-neon-blue outline-none transition-all">
+                <button onclick="searchByISBN()" 
+                    class="absolute right-2 top-2 bg-neon-blue hover:bg-blue-600 text-white px-4 py-1.5 rounded-lg transition-colors text-sm">
+                    <i class="fas fa-barcode mr-1"></i> Search
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="booksGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        <div class="text-center col-span-full py-10">
+            <i class="fas fa-spinner fa-spin text-4xl text-neon-blue"></i>
+            <p class="mt-4 text-gray-400">Loading books...</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const token = localStorage.getItem('token');
+    if (!token) window.location.href = '/login';
+
+    let userShelfBookIds = new Set();
+    let currentUserRole = 'USER';
+
+    async function loadCurrentUser() {
+        try {
+            const response = await fetch('/auth/me', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (response.ok) {
+                const user = await response.json();
+                currentUserRole = user.role;
+            }
+        } catch (error) {
+            console.error('Error loading current user:', error);
+        }
+    }
+
+    async function loadUserShelf() {
+        try {
+            const response = await fetch('/shelf/', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            
+            if (response.ok) {
+                const shelfItems = await response.json();
+                userShelfBookIds = new Set(shelfItems.map(item => item.book_id));
+            }
+        } catch (error) {
+            console.error('Error loading shelf:', error);
+        }
+    }
+
+    async function loadBooks() {
+        const grid = document.getElementById('booksGrid');
+        try {
+            await loadCurrentUser();
+            await loadUserShelf();
+            
+            const response = await fetch('/books/', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            
+            if (!response.ok) throw new Error('Error loading books');
+            
+            const books = await response.json();
+            renderBooks(books);
+        } catch (error) {
+            grid.innerHTML = `<div class="text-red-400 text-center col-span-full">An error occurred: ${error.message}</div>`;
+        }
+    }
+
+    function renderBooks(books) {
+        const grid = document.getElementById('booksGrid');
+        grid.innerHTML = ''; 
+
+        books.forEach(book => {
+            const isOnShelf = userShelfBookIds.has(book.id);
+            const card = document.createElement('div');
+            card.className = "glass-panel rounded-2xl overflow-hidden hover:scale-[1.02] transition-transform duration-300 flex flex-col h-full";
+            const cover = book.cover_url || 'https://via.placeholder.com/300x400?text=No+Cover';
+
+            const buttonHTML = isOnShelf 
+                ? `<button onclick="addToShelf(${book.id}, this)" 
+                    class="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg transition-all duration-300 flex items-center justify-center gap-2 group shelf-btn" 
+                    data-book-id="${book.id}" disabled>
+                    <i class="fas fa-check"></i>
+                    <span class="btn-text">On Shelf</span>
+                </button>`
+                : `<button onclick="addToShelf(${book.id}, this)" 
+                    class="w-full bg-gray-700 hover:bg-neon-blue text-white py-2 rounded-lg transition-all duration-300 flex items-center justify-center gap-2 group shelf-btn" 
+                    data-book-id="${book.id}">
+                    <i class="fas fa-plus group-hover:rotate-90 transition-transform"></i>
+                    <span class="btn-text">Add to Shelf</span>
+                </button>`;
+
+            const deleteButtonHTML = currentUserRole === 'ADMIN' 
+                ? `<button onclick="deleteBook(${book.id}, this)" 
+                    class="w-full mt-2 bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg transition-all duration-300 flex items-center justify-center gap-2 group">
+                    <i class="fas fa-trash"></i>
+                    <span>Delete Book</span>
+                </button>`
+                : '';
+
+            card.innerHTML = `
+                <div class="h-48 overflow-hidden relative group">
+                    <img src="${cover}" alt="${book.title}" class="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity">
+                    <div class="absolute inset-0 bg-gradient-to-t from-gray-900 to-transparent"></div>
+                </div>
+                <div class="p-6 flex-grow flex flex-col">
+                    <h3 class="text-xl font-bold text-white mb-1">${book.title}</h3>
+                    <p class="text-neon-blue text-sm mb-4">${book.author}</p>
+                    <p class="text-gray-400 text-sm line-clamp-3 mb-4 flex-grow">${book.description || 'No description available.'}</p>
+                    
+                    ${buttonHTML}
+                    ${deleteButtonHTML}
+                </div>
+            `;
+            grid.appendChild(card);
+        });
+    }
+
+    async function addToShelf(bookId, buttonElement) {
+        const btn = buttonElement || document.querySelector(`button[data-book-id="${bookId}"]`);
+        if (!btn) return;
+        
+        btn.disabled = true;
+        const originalHTML = btn.innerHTML;
+        
+        try {
+            const response = await fetch('/shelf/', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ book_id: bookId })
+            });
+
+            if (response.ok) {
+                userShelfBookIds.add(bookId);
+                
+                btn.classList.remove('bg-gray-700', 'hover:bg-neon-blue');
+                btn.classList.add('bg-green-600', 'hover:bg-green-700');
+                btn.innerHTML = '<i class="fas fa-check"></i> <span class="btn-text">Added!</span>';
+                
+                showToast('Book successfully added to shelf!', 'success');
+                
+                setTimeout(() => {
+                    btn.innerHTML = '<i class="fas fa-check"></i> <span class="btn-text">On Shelf</span>';
+                    btn.disabled = false;
+                }, 3000);
+            } else {
+                const err = await response.json();
+                btn.innerHTML = originalHTML;
+                btn.disabled = false;
+                
+                if (response.status === 400 && err.detail === "Book already on your shelf") {
+                    btn.classList.remove('bg-gray-700', 'hover:bg-neon-blue');
+                    btn.classList.add('bg-green-600', 'hover:bg-green-700');
+                    btn.innerHTML = '<i class="fas fa-check"></i> <span class="btn-text">On Shelf</span>';
+                    showToast('This book is already on your shelf!', 'info');
+                } else {
+                    showToast(err.detail || "An error occurred!", 'error');
+                }
+            }
+        } catch (error) {
+            console.error(error);
+            btn.innerHTML = originalHTML;
+            btn.disabled = false;
+            showToast('Network error occurred!', 'error');
+        }
+    }
+    
+    async function deleteBook(bookId, buttonElement) {
+        const btn = buttonElement;
+        if (!confirm('Are you sure you want to delete this book? This action cannot be undone.')) {
+            return;
+        }
+        
+        btn.disabled = true;
+        const originalHTML = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deleting...';
+        
+        try {
+            const response = await fetch(`/books/${bookId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            
+            if (response.ok) {
+                showToast('Book successfully deleted!', 'success');
+                await loadBooks();
+            } else {
+                const err = await response.json();
+                showToast(err.detail || 'Error deleting book', 'error');
+                btn.innerHTML = originalHTML;
+                btn.disabled = false;
+            }
+        } catch (error) {
+            console.error(error);
+            showToast('Network error occurred!', 'error');
+            btn.innerHTML = originalHTML;
+            btn.disabled = false;
+        }
+    }
+
+    function showToast(message, type = 'success') {
+        const toast = document.createElement('div');
+        const colors = {
+            success: 'bg-green-600',
+            error: 'bg-red-600',
+            info: 'bg-blue-600'
+        };
+        const icons = {
+            success: 'fa-check-circle',
+            error: 'fa-exclamation-circle',
+            info: 'fa-info-circle'
+        };
+        
+        toast.className = `fixed top-4 right-4 ${colors[type]} text-white px-6 py-3 rounded-lg shadow-lg z-50 flex items-center gap-2 animate-slide-in`;
+        toast.innerHTML = `
+            <i class="fas ${icons[type]}"></i>
+            <span>${message}</span>
+        `;
+        
+        document.body.appendChild(toast);
+        
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateX(100%)';
+            setTimeout(() => toast.remove(), 300);
+        }, 3000);
+    }
+
+    loadBooks();
+
+    async function searchByISBN() {
+        const isbnInput = document.getElementById('isbnInput');
+        const isbn = isbnInput.value.trim();
+        
+        if (!isbn) {
+            alert('Please enter an ISBN number!');
+            return;
+        }
+        
+        const grid = document.getElementById('booksGrid');
+        const originalContent = grid.innerHTML;
+        
+        grid.innerHTML = `
+            <div class="text-center col-span-full py-10">
+                <i class="fas fa-spinner fa-spin text-4xl text-neon-blue"></i>
+                <p class="mt-4 text-gray-400">Searching for book by ISBN...</p>
+            </div>
+        `;
+        
+        try {
+            const response = await fetch('/books/search-by-isbn', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ isbn: isbn })
+            });
+            
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.detail || 'An error occurred during ISBN search');
+            }
+            
+            const newBook = await response.json();
+            
+            await loadBooks();
+            
+            isbnInput.value = '';
+            
+            showToast('Book successfully added!', 'success');
+            
+        } catch (error) {
+            grid.innerHTML = `
+                <div class="text-red-400 text-center col-span-full py-10">
+                    <i class="fas fa-exclamation-triangle text-4xl mb-4"></i>
+                    <p>${error.message}</p>
+                    <button onclick="loadBooks()" class="mt-4 bg-neon-blue hover:bg-blue-600 text-white px-4 py-2 rounded-lg">
+                        Back to Books
+                    </button>
+                </div>
+            `;
+        }
+    }
+    
+    document.getElementById('isbnInput').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            searchByISBN();
+        }
+    });
+
+    document.getElementById('searchInput').addEventListener('input', (e) => {
+        const term = e.target.value.toLowerCase();
+        const cards = document.querySelectorAll('#booksGrid > div');
+        
+        cards.forEach(card => {
+            const title = card.querySelector('h3')?.innerText.toLowerCase() || '';
+            const author = card.querySelector('p')?.innerText.toLowerCase() || '';
+            if (title.includes(term) || author.includes(term)) {
+                card.style.display = 'flex';
+            } else {
+                card.style.display = 'none';
+            }
+        });
+    });
+</script>
+{% endblock %}

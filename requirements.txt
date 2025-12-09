@@ -1,0 +1,12 @@
+sqlalchemy
+asyncpg
+pydantic-settings
+fastapi
+alembic
+bcrypt
+python-jose
+python-multipart
+pydantic[email]
+uvicorn
+jinja2
+httpx
