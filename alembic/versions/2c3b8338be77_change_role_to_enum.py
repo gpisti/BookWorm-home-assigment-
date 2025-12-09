@@ -17,7 +17,7 @@ depends_on = None
 def upgrade():
     userrole_enum = postgresql.ENUM('USER', 'ADMIN', name='userrole')
     userrole_enum.create(op.get_bind(), checkfirst=True)
-    
+
     op.execute("ALTER TABLE users ALTER COLUMN role TYPE userrole USING role::userrole")
 
 def downgrade():
